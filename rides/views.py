@@ -3,6 +3,7 @@ from .serializers import *
 
 from rest_framework.response import Response
 from rest_framework import status
+from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
 import datetime,jwt
@@ -31,8 +32,8 @@ class UserLogin(APIView):
 
     def post(self,request):
 
-        username = request.data['username']
-        password = request.data['password']
+        username = request.data.get('username')
+        password = request.data.get('password')
 
         user = authenticate(username=username,password=password)
         if user is None:
@@ -117,6 +118,11 @@ class RidesView(viewsets.ModelViewSet):
             return Response({"error": "Invalid status"})
         
         ride.status = new_status
+
+        if new_status == "started":
+            ride.current_location = ride.pickup_location
+        if new_status == "completed":
+            ride.current_location = ride.dropoff_location
         
         ride.save()
         return Response({"message": "status updated"})
@@ -137,7 +143,24 @@ class RidesView(viewsets.ModelViewSet):
                
 
         ride.save()
-        return Response({"message":"Ride accepted"})
+        return Response({"message":"Ride accepted"},status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['patch'])
+    def update_current_location(self, request, pk = None):
+
+        ride = self.get_object()
+        location = request.data.get('current_location')
+
+        if ride.driver != request.user:
+            return Response({"message":"Only driver can update current location"},status=status.HTTP_400_BAD_REQUEST)
+        
+        if ride.status != "started":
+            return Response({"message":"Ride is not active, Cannot update current location"},status=status.HTTP_400_BAD_REQUEST)
+        
+        ride.current_location = location
+        ride.save()
+        return Response({"message":"Location updated successfully"},status=status.HTTP_200_OK)
+
 
             
     

@@ -18,5 +18,4 @@ class RidesSerializer(serializers.ModelSerializer):
     class Meta:
         model = RidesModel
         fields = "__all__"
-        read_only_fields = ['rider','driver','status','created_at','updated_at']
-        
+        read_only_fields = ['rider','driver','status','created_at','updated_at',"current_location"]
