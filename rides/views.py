@@ -120,6 +120,26 @@ class RidesView(viewsets.ModelViewSet):
         
         ride.save()
         return Response({"message": "status updated"})
+
+    @action(detail=True, methods=['patch'])
+    def accept_ride(self, request, pk=None):
+
+        ride = self.get_object()
+       
+        
+        if ride.status != "requested" :
+            return Response({"message":"Request Already Accepted"},status=status.HTTP_400_BAD_REQUEST)    
+        if ride.rider == request.user:
+            return Response({"message":"Rider cannot be driver"},status=status.HTTP_400_BAD_REQUEST)
+        
+        ride.status = 'accepted'
+        ride.driver = request.user
+               
+
+        ride.save()
+        return Response({"message":"Ride accepted"})
+
+            
     
 
 
