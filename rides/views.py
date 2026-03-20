@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import BaseAuthentication
 
 from rest_framework.decorators import action
+from django.utils import timezone
 
 
 class UserRegister(APIView):
@@ -93,6 +94,8 @@ class UserLogout(APIView):
         response.data = {"message":"logout"}
 
         return response
+
+
     
 
 class RidesView(viewsets.ModelViewSet):
@@ -107,8 +110,10 @@ class RidesView(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(rider=self.request.user)
 
+
+
     @action(detail=True, methods=['patch'])
-    def status(self, request, pk=None):
+    def update_status(self, request, pk=None):
 
         ride = self.get_object()
         new_status = request.data.get('status')
@@ -126,17 +131,21 @@ class RidesView(viewsets.ModelViewSet):
         
         ride.save()
         return Response({"message": "status updated"})
+    
+
 
     @action(detail=True, methods=['patch'])
     def accept_ride(self, request, pk=None):
 
         ride = self.get_object()
        
-        
+        if request.user.profile.role != "driver":
+            return Response({"error": "Only drivers can accept rides"}, status=status.HTTP_400_BAD_REQUEST)
         if ride.status != "requested" :
             return Response({"message":"Request Already Accepted"},status=status.HTTP_400_BAD_REQUEST)    
         if ride.rider == request.user:
             return Response({"message":"Rider cannot be driver"},status=status.HTTP_400_BAD_REQUEST)
+        
         
         ride.status = 'accepted'
         ride.driver = request.user
@@ -144,6 +153,8 @@ class RidesView(viewsets.ModelViewSet):
 
         ride.save()
         return Response({"message":"Ride accepted"},status=status.HTTP_200_OK)
+    
+
     
     @action(detail=True, methods=['patch'])
     def update_current_location(self, request, pk = None):
@@ -160,6 +171,66 @@ class RidesView(viewsets.ModelViewSet):
         ride.current_location = location
         ride.save()
         return Response({"message":"Location updated successfully"},status=status.HTTP_200_OK)
+    
+
+
+    @action(detail=False, methods=["get"])
+    def match_driver(self,request):
+
+        ride = RidesModel.objects.filter(
+            rider=request.user,
+            status="requested"
+            ).first()
+         
+        if not ride:
+            return Response({"error": "No active ride request found"}, status=404)
+
+        pickup_location = ride.pickup_location
+
+        busy_drivers = RidesModel.objects.filter(status__in = ["accepted","started"]).values_list("driver",flat=True)
+
+        recent_time = timezone.now() - datetime.timedelta(minutes=20)
+
+        available_drivers = User.objects.filter(profile__role="driver").exclude(id__in = busy_drivers).exclude(id=request.user.id)
+        nearby_rides = RidesModel.objects.filter(driver__in = available_drivers, current_location = pickup_location, updated_at__gte = recent_time).order_by('-updated_at')
+        
+        result = []
+        nearby_driver_ids = []
+
+        if nearby_rides.exists():
+            
+            for r in nearby_rides:
+                result.append({
+                    "driver":r.driver.username,
+                    "current_location":r.current_location,
+                    "last_active":r.updated_at
+                })
+
+            nearby_driver_ids = nearby_rides.values_list('driver', flat=True)
+        
+
+        for driver in available_drivers.exclude(id__in=nearby_driver_ids):
+            result.append({
+                "driver": driver.username,
+                "current_location": "unknown",
+                "last_active": "unknown"
+                })
+            
+        if result:
+            return Response(result)
+        
+        return Response({"message": "No drivers available"}, status=status.HTTP_404_NOT_FOUND)
+
+    
+        
+
+
+    
+
+
+    
+     
+
 
 
             

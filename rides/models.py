@@ -24,4 +24,12 @@ class RidesModel(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     current_location = models.CharField(max_length=100,null=True,blank=True)
+
     
+class Profile(models.Model):
+    ROLE_CHOICES = [
+        ("rider", "Rider"),
+        ("driver", "Driver")
+    ]
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
